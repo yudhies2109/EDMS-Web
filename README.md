@@ -1,6 +1,6 @@
 # EDMS Frontend
 
-Frontend Employee Directory & Management System menggunakan React + Vite. Versi ini sepenuhnya lokal: **belum memanggil HTTP API atau terhubung ke backend**.
+React + Vite, terhubung ke API Laravel di proyek sebelah `../EDMS-api`.
 
 ## Menjalankan
 
@@ -9,40 +9,43 @@ npm install
 npm run dev
 ```
 
-Buka alamat lokal yang ditampilkan Vite. Untuk memeriksa kode dan build:
+Backend Sail harus berjalan di `http://localhost`. Vite meneruskan `/api` ke backend tersebut untuk development dan preview. Jika alamat backend berbeda, salin `.env.example` menjadi `.env.local`, ubah `API_PROXY_TARGET`, lalu restart Vite.
+
+Untuk produksi, sediakan reverse proxy `/api` ke Laravel atau set `VITE_API_BASE_URL` saat build ke URL API yang mengizinkan origin frontend melalui CORS. Jangan memasukkan password/token ke variabel build.
+
+## Login dan akses
+
+Gunakan akun yang terdaftar di database API. Akun Admin lokal yang ditemukan saat integrasi adalah `admin@example.com`; gunakan password akun tersebut. Akun simulasi frontend sebelumnya tidak digunakan lagi.
+
+- `POST /api/login` mengembalikan token Bearer dan profil pengguna.
+- Token disimpan per tab di sessionStorage; password tidak disimpan.
+- Refresh memverifikasi sesi melalui `GET /api/user` sebelum menampilkan aplikasi.
+- Logout memanggil `POST /api/logout` untuk mencabut token. Jika request gagal, aplikasi menampilkan error dan sesi bisa dicoba logout kembali.
+- Respons 401 pada request terautentikasi menghapus sesi dan mengarahkan pengguna ke login. Respons 403 menampilkan pesan tidak berhak.
+
+## Fitur
+
+- Dashboard tetap menampilkan WELCOME sesuai desain terakhir.
+- Employee Directory mengambil seluruh halaman pagination dari `GET /api/employees`, lalu menyediakan pencarian nama/email/jabatan/departemen/ID, filter departemen, urutan, pagination tampilan, dan profil.
+- Form tambah/edit mengirim nama, email, telepon, departemen, dan jabatan. Status dan tanggal bergabung tidak ditampilkan karena belum tersedia dalam kontrak API.
+- Tambah/edit/hapus hanya tampil untuk role `admin`. Operasi memakai POST, PUT, dan DELETE `/api/employees` dengan token Bearer; tidak lagi memakai data localStorage.
+- Backend yang tersedia sudah membatasi create/update melalui FormRequest + EmployeePolicy dan delete melalui Gate. Pengguna `karyawan` ditolak oleh backend meskipun mengirim request langsung.
+- Loading, error jaringan, retry daftar, validasi API, dan pencegahan submit ganda ditampilkan dalam UI.
+
+## Pemeriksaan
 
 ```sh
 npm run lint
 npm run build
-npm run preview
+npm test
 ```
 
-## Akun demo
+Pengujian service meliputi token autentikasi, pagination API, CRUD, validasi, 401, 403, dan kegagalan jaringan. Pengujian ini menggunakan respons HTTP terkontrol, bukan database produksi.
 
-| Peran | Email | Kata sandi |
-| --- | --- | --- |
-| Admin | admin@edms.co.id | Admin123! |
-| Karyawan | karyawan@edms.co.id | Karyawan123! |
+Pengujian kontrak backend dapat dijalankan dari direktori frontend saat container Sail aktif:
 
-Klik salah satu akun di halaman login untuk mengisi kredensial, lalu klik **Masuk ke aplikasi**. Kredensial ini merupakan data contoh publik, bukan akun backend.
+```sh
+docker compose -f ../EDMS-api/compose.yaml exec -T laravel.test php < tests/backend-contract.php
+```
 
-## Fitur
-
-- Login simulasi, logout, dan sesi per tab menggunakan sessionStorage.
-- Layout responsif: header, sidebar kiri, konten, footer; navigasi mobile.
-- Dashboard dengan jumlah karyawan, karyawan aktif, departemen, cuti, komposisi tim, dan anggota terbaru berdasarkan tanggal bergabung.
-- Employee Directory: pencarian nama/email/jabatan/departemen/ID, filter departemen/status, urutan nama/tanggal bergabung, pagination, dan profil karyawan.
-- Khusus Admin: tambah, edit, dan hapus dengan dialog konfirmasi. Karyawan hanya melihat direktori dan profil.
-- Validasi field wajib, format email, email unik, status kosong, dan notifikasi hasil.
-- Data awal 14 karyawan. Perubahan disimpan di localStorage browser dengan key `edms-employees-v1`, sehingga bertahan setelah refresh. Hapus key tersebut untuk mengembalikan data awal.
-- Tidak ada aset, font, atau layanan eksternal yang diperlukan saat runtime.
-
-## Alasan pemilihan teknologi
-
-React memudahkan pemisahan komponen, pengelolaan state form/filter, dan pembatasan tampilan berdasarkan peran. Vite menyediakan development server dan build produksi dengan konfigurasi minimal. CSS biasa menjaga ukuran dependensi kecil dan memberi kendali penuh atas layout responsif. Stack ini melanjutkan fondasi proyek yang tersedia.
-
-## Persiapan integrasi backend berikutnya
-
-`src/services/mock.js` memisahkan login dan operasi data lokal dari antarmuka. Saat integrasi diminta, ganti lapisan tersebut dengan HTTP API dan tambahkan state loading, error jaringan, serta penanganan sesi kedaluwarsa. Komponen utama saat ini menggunakan operasi sinkron; pemanggil perlu disesuaikan menjadi async.
-
-**Pembatasan peran di versi ini adalah simulasi UI, bukan keamanan.** Data dan sesi browser dapat diubah pengguna. Saat backend dihubungkan, backend wajib memverifikasi autentikasi dan role pada setiap request tambah/edit/hapus, serta mengembalikan 401/403 untuk request yang tidak berhak. Frontend tidak dapat menggantikan pemeriksaan tersebut. Password demo tidak disimpan dalam sesi.
+Script tersebut membuat database SQLite dalam memori beserta akun uji, lalu memeriksa login, CRUD Admin, penolakan 401/403, pencarian, validasi, dan pencabutan token. Script tidak memakai atau mengubah akun/database aplikasi yang sudah ada.
